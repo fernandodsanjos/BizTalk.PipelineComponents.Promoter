@@ -7,6 +7,6 @@
     <description>BizTalk.PipelineComponents.Promoter</description>
   </metadata>
   <files>
-    <file src="bin\Debug\BizTalk.PipelineComponents.Promoter.dll" target="lib\net45" />
+    <file src="bin\Debug\BizTalk.PipelineComponents.Promoter.dll" target="lib\net4.0" />
   </files>
 </package>
