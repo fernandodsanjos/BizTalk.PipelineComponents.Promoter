@@ -6,8 +6,6 @@ The pipeline component uses custom annotation tags in BizTalk schemas to be able
 http://biztalk.shared/property/ns is used as a custom annotation namespace, http://schemas.microsoft.com/BizTalk/2003 is used internally by BizTalk.
 This namespace must be added manually at the top of the BizTalk schema used for promotion, like xmlns:x="http://biztalk.shared/property/ns".
 
-<p>You must use and import property schemas as usual</p>
-
 <b>Sample annotation</b><br/>
 ```xslt
 <xs:annotation>
@@ -21,5 +19,9 @@ This namespace must be added manually at the top of the BizTalk schema used for 
     </xs:annotation>
 ```
 <br/>
-<p>TIP: Promote as usual in BizTalk schema editor and then change the properties and property prefixes</p>
 
+## Misc
+If a property exists multiple times in the source message, then the last occurence will be promoted.<br/>
+You must use and import property schemas as usual<br/>
+## TIP
+Promote as usual in BizTalk schema editor and then change the properties and property prefixes
