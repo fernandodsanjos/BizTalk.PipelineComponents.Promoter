@@ -26,8 +26,8 @@ namespace BizTalk.PipelineComponents
         int m_StreamLength = 0;
 
         private Stream m_outputStream;
-        private bool m_Processed;
-        private Exception m_ProcessingException;
+        //private bool m_Processed;
+        //private Exception m_ProcessingException;
 
 
         public string BodyPath
@@ -67,7 +67,8 @@ namespace BizTalk.PipelineComponents
 
             foreach (var item in m_schemaMetaData.Properties)
             {
-                xPathCollection.Add(item.Key);
+                if(xPathCollection.Contains(item.Key) == false)
+                    xPathCollection.Add(item.Key);
             }
            
 
@@ -110,7 +111,10 @@ namespace BizTalk.PipelineComponents
                matchXPath = String.Empty;
                if (metaDataProperty.TypeCode != TypeCode.String)
                    ret_value = Convert.ChangeType(value, metaDataProperty.TypeCode);
-               m_context.Promote(metaDataProperty.Name, metaDataProperty.Namespace, ret_value);
+
+               //Only promote first occurence
+               if(m_context.Read(metaDataProperty.Name, metaDataProperty.Namespace) == null)
+                m_context.Promote(metaDataProperty.Name, metaDataProperty.Namespace, ret_value);
 
                
            }

@@ -17,7 +17,7 @@ using System.Collections;
 using System.Collections.Specialized;
 
 using Microsoft.BizTalk.Streaming;
-using Microsoft.BizTalk.ParsingEngine;
+//using Microsoft.BizTalk.ParsingEngine;
 using System.Xml.Schema;
 using Microsoft.CSharp.RuntimeBinder;
 
@@ -77,13 +77,7 @@ namespace BizTalk.PipelineComponents
         {
             string name = String.Empty;
             string ns = String.Empty;
-            /*
-            for (int i = 0; i < pInMsg.Context.CountProperties; i++)
-            {
-                object obj = pInMsg.Context.ReadAt(i, out name, out ns);
-
-            }
-            */
+          
 
           
             Stream orig_stream = pInMsg.BodyPart.GetOriginalDataStream();
@@ -100,12 +94,23 @@ namespace BizTalk.PipelineComponents
                     throw new ArgumentException("Schema StrongName is not promoted!");
             }
 
-
+            /*
+             * Does only pick up biztalk properties
+            IDocumentSpec spec = pContext.GetDocumentSpecByName((string)assembly);
+           */
 
             SchemaMetaData schemaMetaData = SchemaRetriever.GetSchemaMetaData((string)assembly);
 
+           
             if (schemaMetaData != null)
-                pInMsg.BodyPart.Data = new XPathStream(orig_stream, schemaMetaData, pInMsg.Context);
+            { 
+                XPathStream XStream = new XPathStream(orig_stream, schemaMetaData, pInMsg.Context);
+
+                pContext.ResourceTracker.AddResource(XStream);
+        
+                pInMsg.BodyPart.Data = XStream;
+            }
+               
 
             return pInMsg;
         }

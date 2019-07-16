@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -9,13 +10,13 @@ namespace BizTalk.PipelineComponents
 {
     public class SchemaMetaData
     {
-        Dictionary<string, SchemaMetaDataProperty> _properties = null;
+        ConcurrentDictionary<string, SchemaMetaDataProperty> _properties = null;
 
-        public Dictionary<string, SchemaMetaDataProperty> Properties
+        public ConcurrentDictionary<string, SchemaMetaDataProperty> Properties
         {
             get{
                 if(_properties == null)
-                        _properties = new Dictionary<string,SchemaMetaDataProperty>();
+                        _properties = new ConcurrentDictionary<string,SchemaMetaDataProperty>();
 
                 return _properties;
             }

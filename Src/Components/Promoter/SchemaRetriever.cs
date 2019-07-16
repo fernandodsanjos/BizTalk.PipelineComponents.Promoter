@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Collections;
 using System.Text;
 using System.IO;
@@ -28,7 +28,7 @@ namespace BizTalk.PipelineComponents
         /// <summary>
         /// caches containing a information needed to promote values for a specific schema
         /// </summary>
-        private static Dictionary<string, SchemaMetaData> _propertySchemaCache;
+        private static ConcurrentDictionary<string, SchemaMetaData> schemaMetaDataCache;
 
         /// <summary>
         /// initializes used static variables
@@ -36,14 +36,45 @@ namespace BizTalk.PipelineComponents
         static SchemaRetriever()
         {
 
-            _propertySchemaCache = new Dictionary<string, SchemaMetaData>();
+            schemaMetaDataCache = new ConcurrentDictionary<string, SchemaMetaData>();
         }
 
+        public static SchemaMetaData GetSchemaMetaData(string SchemaStrongName)
+        {
 
+            SchemaMetaData schemaMetaData = null;
+
+            //Return SchemaMetaData from  Cache if it already esxist in the collection
+            if (schemaMetaDataCache.TryGetValue(SchemaStrongName, out schemaMetaData))
+                    return schemaMetaData;
+            
+
+            //Check schema assembly name when run in BTS if there is any space between class and assembly
+            Microsoft.BizTalk.ExplorerOM.Schema schema = GetSchema(SchemaStrongName);
+
+            if (schema == null)
+                return schemaMetaData;
+
+            XmlSchema xmlSchema = XmlSchema.Read(new StringReader(schema.XmlContent), null);
+
+            schemaMetaData = CreateSchemaMetaData(xmlSchema, schema);
+
+            if (schemaMetaData != null)
+            {
+
+                ProcessPropertySchemas(xmlSchema, schemaMetaData);
+
+                schemaMetaDataCache.TryAdd(SchemaStrongName, schemaMetaData);
+                
+            }
+
+
+            return schemaMetaData;
+        }
         /// <summary>
         /// provides access to all schemas within the catalog; initialized upon first use
         /// </summary>
-        public static SchemaCollection Schemas
+        private static SchemaCollection Schemas
         {
             get
             {
@@ -100,89 +131,6 @@ namespace BizTalk.PipelineComponents
             }
         }
 
-        /*  public static XmlSchema GetSchema(string SchemaStrongName)
-          {
-         * ####not used
-              string ass = SchemaStrongName.Substring(SchemaStrongName.IndexOf(',') + 1).TrimStart();
-              string ass_class = SchemaStrongName.Substring(0, SchemaStrongName.IndexOf(',')).TrimEnd();
-
-              Assembly schema_ass = null;
-
-              try
-              {
-                  schema_ass = Assembly.Load(ass);
-              }
-              catch (FileNotFoundException)
-              {
-
-                  throw new ArgumentException("Schema assembly not found!");
-              }
-
-              Type type = schema_ass.GetType(ass_class);
-
-              if (type == null)
-                  throw new ArgumentException("Schema type not found!");
-
-              dynamic dyn_schema = Activator.CreateInstance(type);
-
-              string schema_data = null;
-
-              try
-              {
-                  schema_data = dyn_schema.XmlContent;
-              }
-              catch (RuntimeBinderException)
-              {
-
-                  throw new ArgumentException("Schema content could not be loaded!");
-              }
-
-              XmlSchema schema = XmlSchema.Read(new StringReader(schema_data), null);
-
-              return schema;
-          }*/
-
-        public static SchemaMetaData GetSchemaMetaData(string SchemaStrongName)
-        {
-            
-            //AssemblyFullName does not use the first space 
-            //AssemblyFullName BizTalkComponents.PipelineComponents.Schema_Transform_Source, BizTalkComponents.PipelineComponents.XSLTransform.Schema, Version=1.0.0.0, Culture=neutral, PublicKeyToken=47190f56632fbc76
-            //FullName used in Microsoft.BizTalk.ExplorerOM BizTalkComponents.PipelineComponents.Schema_Transform_Source,BizTalkComponents.PipelineComponents.XSLTransform.Schema, Version=1.0.0.0, Culture=neutral, PublicKeyToken=47190f56632fbc76
-            SchemaStrongName = SchemaStrongName.Remove(SchemaStrongName.IndexOf(" "), 1);
-
-            SchemaMetaData _propSchema = null;
-
-            lock (_propertySchemaCache)
-            {
-                if (_propertySchemaCache.TryGetValue(SchemaStrongName, out _propSchema))
-                    return _propSchema;
-            }
-
-            //Check schema assembly name when run in BTS if there is any space between class and assembly
-            Microsoft.BizTalk.ExplorerOM.Schema schema = GetSchema(SchemaStrongName);
-
-            if (schema == null)
-                return _propSchema;
-
-            XmlSchema xmlSchema = XmlSchema.Read(new StringReader(schema.XmlContent), null);
-
-            _propSchema = CreateSchemaMetaData(xmlSchema, schema);
-
-            if (_propSchema != null)
-            {
-
-                ProcessPropertySchemas(xmlSchema, _propSchema);
-
-                lock (_propertySchemaCache)
-                {
-                    _propertySchemaCache.Add(SchemaStrongName, _propSchema);
-                }
-            }
-
-
-            return _propSchema;
-        }
-
         private static SchemaMetaData CreateSchemaMetaData(XmlSchema xmlSchema, Schema Schema)
         {
             SchemaMetaData _propSchema = null;
@@ -230,7 +178,7 @@ namespace BizTalk.PipelineComponents
                                         dataProperty.Name = _name[1];
                                         dataProperty.Namespace = qn.Namespace;
 
-                                        _propSchema.Properties.Add(xpath.InnerText, dataProperty);
+                                        _propSchema.Properties.TryAdd(xpath.InnerText, dataProperty);
 
                                     }
 
@@ -251,10 +199,16 @@ namespace BizTalk.PipelineComponents
 
         private static Microsoft.BizTalk.ExplorerOM.Schema GetSchema(string SchemaStrongName)
         {
+            //AssemblyFullName does not use the first space 
+            //AssemblyFullName BizTalkComponents.PipelineComponents.Schema_Transform_Source, BizTalkComponents.PipelineComponents.XSLTransform.Schema, Version=1.0.0.0, Culture=neutral, PublicKeyToken=47190f56632fbc76
+            //FullName used in Microsoft.BizTalk.ExplorerOM BizTalkComponents.PipelineComponents.Schema_Transform_Source,BizTalkComponents.PipelineComponents.XSLTransform.Schema, Version=1.0.0.0, Culture=neutral, PublicKeyToken=47190f56632fbc76
+            SchemaStrongName = SchemaStrongName.Remove(SchemaStrongName.IndexOf(" "), 1);
 
             foreach (Microsoft.BizTalk.ExplorerOM.Schema schema in Schemas)
             {
-                //Check schema assembly name when run in BTS if there is any space between class and assembly
+                if (schema.Type == SchemaType.Property)
+                    continue;
+             
                 if (schema.AssemblyQualifiedName == SchemaStrongName)
                     return schema;
             }
@@ -421,4 +375,49 @@ namespace BizTalk.PipelineComponents
 
         }
     }
+
+    /*
+     public static XmlSchema GetSchema(string SchemaStrongName)
+       {
+
+           string ass = SchemaStrongName.Substring(SchemaStrongName.IndexOf(',') + 1).TrimStart();
+           string ass_class = SchemaStrongName.Substring(0, SchemaStrongName.IndexOf(',')).TrimEnd();
+
+           Assembly schema_ass = null;
+
+           try
+           {
+               schema_ass = Assembly.Load(ass);
+           }
+           catch (FileNotFoundException)
+           {
+
+               throw new ArgumentException("Schema assembly not found!");
+           }
+
+           Type type = schema_ass.GetType(ass_class);
+
+           if (type == null)
+               throw new ArgumentException("Schema type not found!");
+
+           dynamic dyn_schema = Activator.CreateInstance(type);
+
+           string schema_data = null;
+
+           try
+           {
+               schema_data = dyn_schema.XmlContent;
+           }
+           catch (RuntimeBinderException)
+           {
+
+               throw new ArgumentException("Schema content could not be loaded!");
+           }
+
+           XmlSchema schema = XmlSchema.Read(new StringReader(schema_data), null);
+
+           return schema;
+       }
+       */
+
 }
